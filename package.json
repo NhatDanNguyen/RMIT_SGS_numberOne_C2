@@ -1,0 +1,48 @@
+{
+  "name": "cobid",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc -b && vite build",
+    "start": "node --env-file-if-exists=.env server/index.mjs",
+    "typecheck": "tsc -b",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm test && npm run build",
+    "setup": "node scripts/setup.mjs",
+    "doctor": "node --env-file-if-exists=.env scripts/doctor.mjs",
+    "demo:reset": "node scripts/reset.mjs",
+    "tide:up": "docker compose --env-file .env up -d",
+    "tide:down": "docker compose down",
+    "predev": "node scripts/prepare.mjs",
+    "pretest": "node scripts/prepare.mjs",
+    "prestart": "node scripts/prepare.mjs",
+    "prebuild": "node scripts/prepare.mjs"
+  },
+  "dependencies": {
+    "@tidecloak/react": "0.14.33",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "jose": "^6.1.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.0",
+    "@tidecloak/js": "0.14.41",
+    "@tideorg/js": "0.14.29",
+    "heimdall-tide": "0.14.41"
+  },
+  "devDependencies": {
+    "@tideorg/mcp": "1.9.33",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.0",
+    "esbuild": "^0.25.0"
+  }
+}

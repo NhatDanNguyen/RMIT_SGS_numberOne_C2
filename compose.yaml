@@ -1,0 +1,14 @@
+name: cobid
+services:
+  tidecloak:
+    image: ${TIDECLOAK_IMAGE:-tideorg/tidecloak-dev:latest}
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?Run npm run setup first}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?Run npm run setup first}
+    volumes:
+      - tidecloak-data:/opt/keycloak/data/h2
+    restart: unless-stopped
+volumes:
+  tidecloak-data:
