@@ -7,6 +7,8 @@ import { resolveDpopAuthRequest } from '@tidecloak/js/dpop-server';
 import { room, suppliers, supplierById } from '../shared/catalog.mjs';
 import { makeVerifier, hasRole, isMember, rolesOf } from './auth.mjs';
 import { quoteId, quoteRole, inspectPolicy } from './policy.mjs';
+import { createSimulation } from './simulation.mjs';
+import { simulationPolicy } from '../shared/simulation.mjs';
 const cipherSchema = z.object({ciphertext:z.string().min(32).max(180000).regex(/^[A-Za-z0-9+/=_-]+$/),format:z.enum(['string','bytes']),version:z.number().int().nonnegative()}).strict();
 const requestSchema = z.object({supplier:z.enum(['design','software','video']),reason:z.string().trim().min(8).max(500)}).strict();
 export function createApp(config, store) {
@@ -17,6 +19,9 @@ export function createApp(config, store) {
   app.use((req,res,next) => {
     const hit = resolveDpopAuthRequest({pathname:req.path,expectedIssuer:config.issuer,expectedClient:config.clientId,method:req.method});
     if (!hit) return next();
+    // The Tide enclave frames this SDK-owned document. Helmet's default
+    // SAMEORIGIN would override the relay's own strict CSP and block it.
+    res.removeHeader('X-Frame-Options');
     res.status(hit.status).set(hit.headers).send(hit.body);
   });
   app.use('/api', (_req,res,next) => { res.set('Cache-Control','no-store'); next(); });
@@ -25,16 +30,18 @@ export function createApp(config, store) {
     next();
   });
   app.use(express.json({limit:'256kb'}));
-  app.get('/api/health', (_req,res) => res.json({ok:true,identityConfigured:!!config.adapter,liveIntegrationVerified:false}));
+  const simulation = config.mode === 'simulation' ? createSimulation(store) : null;
+  app.get('/api/health', (_req,res) => res.json({ok:true,mode:config.mode||'tide',identityConfigured:!!config.adapter,liveIntegrationVerified:false}));
   app.get('/api/config', (_req,res) => res.json({
-    configured:!!config.adapter,issue:config.issue,adapter:config.adapter,
+    mode:config.mode||'tide',configured:!!simulation||!!config.adapter,issue:config.issue,adapter:config.adapter,
     consoleUrl:config.baseUrl+'/realms/'+config.realm+'/tide-console/',
     setupUrl:config.baseUrl,governance:{targetAdmins:3,targetApprovals:2,verified:false},
   }));
   app.get('/api/public-room', (_req,res) => res.json({room,suppliers:suppliers.map(({sample,...s})=>s)}));
-  const verifier = makeVerifier(config,store);
+  if (simulation) app.use('/api/simulation', simulation.router);
+  const verifier = simulation ? simulation.verify : makeVerifier(config,store);
   app.use('/api', async (req,res,next) => {
-    if (!req.get('authorization')) return res.status(401).json({error:'Sign in with TideCloak to continue.'});
+    if (!simulation && !req.get('authorization')) return res.status(401).json({error:'Sign in with TideCloak to continue.'});
     try { req.claims = await verifier(req); if (!isMember(req.claims) && !hasRole(req.claims,'tide-realm-admin')) return res.status(403).json({error:'No CoBid membership assigned.'}); next(); }
     catch(e) { res.status(e.status || 401).json({error:e.status===503?'Complete TideCloak setup first.':'Your session could not be verified. Sign in again.'}); }
   });
@@ -57,7 +64,7 @@ export function createApp(config, store) {
     if (!hasRole(req.claims,'tide-realm-admin')) return res.status(403).json({error:'Governance administrator required.'});
     const input=z.object({policy:z.string().min(20).max(200000).regex(/^[A-Za-z0-9+/=]+$/)}).strict().parse(req.body);
     if (store.quote(s.id)) return res.status(409).json({error:'A policy cannot be replaced after a quote is sealed. Use the documented reset or a new record.'});
-    try { inspectPolicy(input.policy,s.id,config.adapter.vendorId); } catch { return res.status(400).json({error:'Policy does not match this quote, role, realm, or required operations.'}); }
+    try { if(simulation){if(input.policy!==simulationPolicy(s.id))throw Error('Invalid simulation policy');}else inspectPolicy(input.policy,s.id,config.adapter.vendorId); } catch { return res.status(400).json({error:'Policy does not match this quote, role, realm, or required operations.'}); }
     store.savePolicy(s.id,input.policy,req.claims.sub); store.event(req.claims.preferred_username||'Governance admin','Stored signed-policy bytes; network validation occurs on use',s.id);
     res.status(201).json({stored:true,networkVerified:false});
   });

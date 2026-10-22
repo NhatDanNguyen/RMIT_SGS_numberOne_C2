@@ -1,8 +1,8 @@
 import { createLocalJWKSet, jwtVerify, decodeProtectedHeader, importJWK, calculateJwkThumbprint } from 'jose';
 import { createHash } from 'node:crypto';
 import { membershipRoles } from '../shared/catalog.mjs';
-export const rolesOf = claims => Array.isArray(claims?.realm_access?.roles) ? claims.realm_access.roles.filter(r => typeof r === 'string') : [];
-export const hasRole = (claims, role) => rolesOf(claims).includes(role);
+import { hasRole } from '../shared/access.mjs';
+export { rolesOf, hasRole } from '../shared/access.mjs';
 export const isMember = claims => membershipRoles.some(r => hasRole(claims, r));
 export function makeVerifier(config, store) {
   const jwks = config.adapter ? createLocalJWKSet(config.adapter.jwk) : null;

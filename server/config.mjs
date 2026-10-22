@@ -5,9 +5,15 @@ export function loadConfig(env = process.env) {
   const baseUrl = (env.TIDECLOAK_URL || 'http://localhost:8080').replace(/\/+$/, '');
   const realm = env.TIDECLOAK_REALM || 'cobid';
   const clientId = env.TIDECLOAK_CLIENT_ID || 'cobid-web';
+  const mode = env.AUTH_MODE || 'tide';
+  if (!['tide', 'simulation'].includes(mode)) throw new Error('AUTH_MODE must be tide or simulation.');
+  const host = env.HOST || '127.0.0.1';
+  if (mode === 'simulation' && (env.NODE_ENV === 'production' || !['127.0.0.1', 'localhost', '::1'].includes(host) || !['localhost', '127.0.0.1', '[::1]'].includes(new URL(origin).hostname)))
+    throw new Error('Simulation is available only on a local development host and origin. Use AUTH_MODE=tide for production.');
   const config = { origin, baseUrl, realm, clientId, issuer: baseUrl + '/realms/' + realm,
-    audience: env.TIDECLOAK_AUDIENCE || clientId, databasePath: env.DATABASE_PATH || './.local/cobid.sqlite',
-    host: env.HOST || '127.0.0.1', port: Number(env.PORT || 3001), adapter: null, issue: '' };
+    mode, audience: env.TIDECLOAK_AUDIENCE || clientId, databasePath: mode === 'simulation' ? './.local/cobid-simulation.sqlite' : env.DATABASE_PATH || './.local/cobid.sqlite',
+    host, port: Number(env.PORT || 3001), adapter: null, issue: '' };
+  if (mode === 'simulation') return config;
   try {
     const raw = JSON.parse(readFileSync(resolve(env.TIDECLOAK_ADAPTER_PATH || './tidecloak.json'), 'utf8'));
     if (raw.realm !== realm || raw.resource !== clientId || raw['auth-server-url']?.replace(/\/+$/, '') !== baseUrl)
